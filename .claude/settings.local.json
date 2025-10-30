@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "Bash(xargs:*)",
+      "Bash(mysql --version:*)",
+      "Bash(mysql:*)",
+      "Bash(./gradlew bootRun)",
+      "Bash(pnpm install)",
+      "Bash(pnpm dev)",
+      "Bash(./gradlew clean build:*)",
+      "Bash(/home/jaemin/korean-agri-shop/backend/gradlew:*)",
+      "Bash(curl:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

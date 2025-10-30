@@ -1,0 +1,48 @@
+# Node.js
+node_modules/
+.pnpm-store/
+pnpm-lock.yaml
+
+# Next.js
+.next/
+out/
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+/build/
+.gradle/
+.project
+.settings
+.classpath
+.factorypath
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+logs/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS generated files
+.DS_Store
+.Trashes
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# misc
+*.swp
+*.swo
