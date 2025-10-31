@@ -101,13 +101,13 @@ export default function AdminDashboard() {
     if (!token) return
 
     try {
-      // Fetch orders
-      const ordersResponse = await fetch("http://localhost:8081/api/orders", {
+      // Fetch orders (Admin - all orders)
+      const ordersResponse = await fetch("http://localhost:8081/api/admin/orders", {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (ordersResponse.ok) {
         const ordersData = await ordersResponse.json()
-        setOrders(ordersData)
+        setOrders(ordersData.content || [])
       }
 
       // Fetch products
