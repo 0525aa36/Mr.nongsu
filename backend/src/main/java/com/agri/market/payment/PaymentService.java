@@ -74,4 +74,45 @@ public class PaymentService {
         orderRepository.save(order);
         paymentRepository.save(payment);
     }
+
+    /**
+     * 결제 환불 처리 (Mock)
+     * @param orderId 주문 ID
+     * @param refundReason 환불 사유
+     * @return 환불된 Payment
+     */
+    @Transactional
+    public Payment processRefund(Long orderId, String refundReason) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found with id: " + orderId));
+
+        // 결제 정보 조회
+        Payment payment = paymentRepository.findByOrder(order)
+                .orElseThrow(() -> new RuntimeException("Payment not found for order: " + orderId));
+
+        // 환불 가능 여부 확인
+        if (payment.getStatus() != PaymentStatus.PAID) {
+            throw new RuntimeException("Cannot refund: Payment is not in PAID status");
+        }
+
+        if (payment.getRefundAmount() != null && payment.getRefundAmount().compareTo(BigDecimal.ZERO) > 0) {
+            throw new RuntimeException("Payment already refunded");
+        }
+
+        // Mock 환불 처리 (실제로는 결제 게이트웨이 API 호출)
+        payment.setRefundAmount(payment.getAmount());
+        payment.setRefundedAt(java.time.LocalDateTime.now());
+        payment.setRefundTransactionId("REFUND_TXN_" + System.currentTimeMillis());
+        payment.setRefundReason(refundReason);
+        payment.setStatus(PaymentStatus.FAILED); // 환불 완료 시 FAILED로 변경 (또는 REFUNDED 상태 추가 가능)
+
+        // 주문 상태도 CANCELLED로 변경
+        order.setOrderStatus(OrderStatus.CANCELLED);
+        order.setPaymentStatus(PaymentStatus.FAILED);
+
+        paymentRepository.save(payment);
+        orderRepository.save(order);
+
+        return payment;
+    }
 }

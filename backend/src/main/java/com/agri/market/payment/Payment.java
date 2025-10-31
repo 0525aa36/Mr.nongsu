@@ -35,4 +35,11 @@ public class Payment {
     @CreationTimestamp
     @Column(name = "payment_date", nullable = false, updatable = false)
     private LocalDateTime paymentDate;
+
+    // Refund information
+    @Column(precision = 10, scale = 2)
+    private BigDecimal refundAmount; // 환불 금액
+    private LocalDateTime refundedAt; // 환불 시간
+    private String refundTransactionId; // 환불 거래 ID
+    private String refundReason; // 환불 사유
 }

@@ -1,6 +1,8 @@
 package com.agri.market.payment;
 
+import com.agri.market.dto.RefundRequest;
 import com.agri.market.dto.WebhookRequest;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,5 +26,17 @@ public class PaymentController {
     public ResponseEntity<String> handleWebhook(@RequestBody WebhookRequest webhookRequest) {
         paymentService.handleWebhook(webhookRequest);
         return ResponseEntity.ok("Webhook received and processed.");
+    }
+
+    @PostMapping("/{orderId}/refund")
+    public ResponseEntity<?> processRefund(
+            @PathVariable Long orderId,
+            @Valid @RequestBody RefundRequest refundRequest) {
+        try {
+            Payment refundedPayment = paymentService.processRefund(orderId, refundRequest.getRefundReason());
+            return ResponseEntity.ok(refundedPayment);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 }
