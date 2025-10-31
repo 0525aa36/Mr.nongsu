@@ -57,4 +57,9 @@ public class Order {
     private String shippingAddressLine2;
     @Column(nullable = false)
     private String shippingPostcode;
+
+    // Cancellation information
+    private String cancellationReason; // 취소 사유
+    private LocalDateTime cancelledAt; // 취소 시간
+    private String trackingNumber; // 송장 번호 (배송 추적용)
 }

@@ -117,4 +117,47 @@ public class OrderService {
             productRepository.save(lockedProduct);
         }
     }
+
+    /**
+     * 주문 취소
+     * @param orderId 주문 ID
+     * @param userEmail 사용자 이메일 (권한 확인용)
+     * @param cancellationReason 취소 사유
+     * @return 취소된 주문
+     */
+    @Transactional
+    public Order cancelOrder(Long orderId, String userEmail, String cancellationReason) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found with id: " + orderId));
+
+        // 본인 주문인지 확인
+        if (!order.getUser().getEmail().equals(userEmail)) {
+            throw new RuntimeException("Unauthorized: This order does not belong to you");
+        }
+
+        // 취소 가능 상태 검증
+        if (order.getOrderStatus() == OrderStatus.SHIPPED ||
+            order.getOrderStatus() == OrderStatus.DELIVERED) {
+            throw new RuntimeException("Cannot cancel order: Order already shipped or delivered");
+        }
+
+        if (order.getOrderStatus() == OrderStatus.CANCELLED) {
+            throw new RuntimeException("Order is already cancelled");
+        }
+
+        // 재고 복구
+        restoreStock(orderId);
+
+        // 주문 상태 변경
+        order.setOrderStatus(OrderStatus.CANCELLED);
+        order.setCancellationReason(cancellationReason);
+        order.setCancelledAt(java.time.LocalDateTime.now());
+
+        // 결제 상태도 취소로 변경 (결제 완료된 경우 환불 처리는 PaymentService에서)
+        if (order.getPaymentStatus() == PaymentStatus.PENDING) {
+            order.setPaymentStatus(PaymentStatus.FAILED);
+        }
+
+        return orderRepository.save(order);
+    }
 }

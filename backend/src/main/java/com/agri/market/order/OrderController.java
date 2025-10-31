@@ -1,5 +1,6 @@
 package com.agri.market.order;
 
+import com.agri.market.dto.CancelOrderRequest;
 import com.agri.market.dto.OrderRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -45,5 +46,21 @@ public class OrderController {
         return orderService.getOrderById(orderId)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{orderId}/cancel")
+    public ResponseEntity<?> cancelOrder(
+            @PathVariable Long orderId,
+            @Valid @RequestBody CancelOrderRequest cancelRequest) {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String userEmail = userDetails.getUsername();
+
+            Order cancelledOrder = orderService.cancelOrder(orderId, userEmail, cancelRequest.getCancellationReason());
+            return ResponseEntity.ok(cancelledOrder);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 }
