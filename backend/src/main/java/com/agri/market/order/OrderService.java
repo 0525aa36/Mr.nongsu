@@ -8,10 +8,13 @@ import com.agri.market.product.Product;
 import com.agri.market.product.ProductRepository;
 import com.agri.market.user.User;
 import com.agri.market.user.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -189,6 +192,79 @@ public class OrderService {
 
         // 구매 확정
         order.setConfirmedAt(java.time.LocalDateTime.now());
+
+        return orderRepository.save(order);
+    }
+
+    // ==================== 관리자 전용 메서드 ====================
+
+    /**
+     * 모든 주문 조회 (페이징, 필터링)
+     * @param orderStatus 주문 상태 필터 (null이면 전체)
+     * @param paymentStatus 결제 상태 필터 (null이면 전체)
+     * @param startDate 시작 날짜 (null이면 제한 없음)
+     * @param endDate 종료 날짜 (null이면 제한 없음)
+     * @param pageable 페이징 정보
+     * @return 주문 페이지
+     */
+    public Page<Order> getAllOrders(
+            OrderStatus orderStatus,
+            PaymentStatus paymentStatus,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            Pageable pageable) {
+
+        // 필터가 하나도 없으면 전체 조회
+        if (orderStatus == null && paymentStatus == null && startDate == null && endDate == null) {
+            return orderRepository.findAllByOrderByCreatedAtDesc(pageable);
+        }
+
+        // 필터링 조회
+        return orderRepository.findOrdersWithFilters(orderStatus, paymentStatus, startDate, endDate, pageable);
+    }
+
+    /**
+     * 주문 상태 변경 (관리자용)
+     * @param orderId 주문 ID
+     * @param newStatus 새로운 주문 상태
+     * @return 변경된 주문
+     */
+    @Transactional
+    public Order updateOrderStatus(Long orderId, OrderStatus newStatus) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found with id: " + orderId));
+
+        OrderStatus oldStatus = order.getOrderStatus();
+        order.setOrderStatus(newStatus);
+
+        // 상태별 타임스탬프 업데이트
+        if (newStatus == OrderStatus.SHIPPED && oldStatus != OrderStatus.SHIPPED) {
+            order.setShippedAt(LocalDateTime.now());
+        } else if (newStatus == OrderStatus.DELIVERED && oldStatus != OrderStatus.DELIVERED) {
+            order.setDeliveredAt(LocalDateTime.now());
+        }
+
+        return orderRepository.save(order);
+    }
+
+    /**
+     * 송장 번호 등록 (관리자용)
+     * @param orderId 주문 ID
+     * @param trackingNumber 송장 번호
+     * @return 업데이트된 주문
+     */
+    @Transactional
+    public Order updateTrackingNumber(Long orderId, String trackingNumber) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found with id: " + orderId));
+
+        order.setTrackingNumber(trackingNumber);
+
+        // 송장 번호 등록 시 자동으로 SHIPPED 상태로 변경
+        if (order.getOrderStatus() == OrderStatus.PAID) {
+            order.setOrderStatus(OrderStatus.SHIPPED);
+            order.setShippedAt(LocalDateTime.now());
+        }
 
         return orderRepository.save(order);
     }

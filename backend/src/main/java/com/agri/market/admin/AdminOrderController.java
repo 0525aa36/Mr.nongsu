@@ -1,20 +1,27 @@
 package com.agri.market.admin;
 
+import com.agri.market.order.Order;
+import com.agri.market.order.OrderService;
+import com.agri.market.order.OrderStatus;
+import com.agri.market.order.PaymentStatus;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/orders")
@@ -22,9 +29,11 @@ import java.time.format.DateTimeFormatter;
 public class AdminOrderController {
 
     private final ExcelService excelService;
+    private final OrderService orderService;
 
-    public AdminOrderController(ExcelService excelService) {
+    public AdminOrderController(ExcelService excelService, OrderService orderService) {
         this.excelService = excelService;
+        this.orderService = orderService;
     }
 
     @GetMapping("/export")
@@ -63,5 +72,53 @@ public class AdminOrderController {
                 .contentType(mediaType)
                 .contentLength(resource.contentLength())
                 .body(resource);
+    }
+
+    @GetMapping
+    public ResponseEntity<Page<Order>> getOrders(
+            @RequestParam(required = false) OrderStatus orderStatus,
+            @RequestParam(required = false) PaymentStatus paymentStatus,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Order> orders = orderService.getAllOrders(orderStatus, paymentStatus, startDate, endDate, pageable);
+        return ResponseEntity.ok(orders);
+    }
+
+    @PutMapping("/{orderId}/status")
+    public ResponseEntity<?> updateOrderStatus(
+            @PathVariable Long orderId,
+            @RequestBody Map<String, String> request) {
+        try {
+            String statusStr = request.get("status");
+            OrderStatus newStatus = OrderStatus.valueOf(statusStr);
+
+            Order updatedOrder = orderService.updateOrderStatus(orderId, newStatus);
+            return ResponseEntity.ok(updatedOrder);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body("Invalid status value");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PutMapping("/{orderId}/tracking")
+    public ResponseEntity<?> updateTrackingNumber(
+            @PathVariable Long orderId,
+            @RequestBody Map<String, String> request) {
+        try {
+            String trackingNumber = request.get("trackingNumber");
+            if (trackingNumber == null || trackingNumber.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Tracking number is required");
+            }
+
+            Order updatedOrder = orderService.updateTrackingNumber(orderId, trackingNumber);
+            return ResponseEntity.ok(updatedOrder);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 }
