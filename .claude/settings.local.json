@@ -11,7 +11,8 @@
       "Bash(pnpm dev)",
       "Bash(./gradlew clean build:*)",
       "Bash(/home/jaemin/korean-agri-shop/backend/gradlew:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
