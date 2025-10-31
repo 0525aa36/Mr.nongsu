@@ -9,125 +9,265 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useParams, useRouter } from "next/navigation"
 import { ShoppingCart, Heart, Share2, Minus, Plus, Star, Truck, Shield, RefreshCw } from "lucide-react"
-import { ProductCard } from "@/components/product-card"
+
+interface Product {
+  id: number
+  name: string
+  category: string
+  origin: string
+  description: string
+  price: number
+  stock: number
+  imageUrl: string
+  createdAt: string
+  updatedAt: string
+}
+
+interface Review {
+  id: number
+  productId: number
+  productName: string
+  userId: number
+  userName: string
+  rating: number
+  title: string
+  content: string
+  createdAt: string
+  updatedAt: string
+}
+
+interface ReviewStats {
+  averageRating: number
+  reviewCount: number
+}
 
 export default function ProductDetailPage() {
-  const [quantity, setQuantity] = useState(1)
-  const [selectedOption, setSelectedOption] = useState("3kg")
-  const [mainImage, setMainImage] = useState("/fresh-jeju-tangerines.jpg")
+  const params = useParams()
+  const router = useRouter()
+  const { toast } = useToast()
+  const productId = params.id as string
 
-  const product = {
-    id: "1",
-    name: "제주 감귤 (특품)",
-    price: 19900,
-    originalPrice: 29900,
-    rating: 4.8,
-    reviewCount: 234,
-    description:
-      "제주 청정 지역에서 재배한 당도 높은 프리미엄 감귤입니다. 비타민C가 풍부하여 겨울철 건강 관리에 좋습니다.",
-    producer: "제주 김농부",
-    origin: "제주 서귀포",
-    shipping: "새벽배송 가능",
+  const [product, setProduct] = useState<Product | null>(null)
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [reviewStats, setReviewStats] = useState<ReviewStats>({ averageRating: 0, reviewCount: 0 })
+  const [loading, setLoading] = useState(true)
+  const [quantity, setQuantity] = useState(1)
+  const [mainImage, setMainImage] = useState("")
+
+  // Review form state
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false)
+  const [reviewRating, setReviewRating] = useState(5)
+  const [reviewTitle, setReviewTitle] = useState("")
+  const [reviewContent, setReviewContent] = useState("")
+  const [submittingReview, setSubmittingReview] = useState(false)
+
+  useEffect(() => {
+    if (productId) {
+      fetchProduct()
+      fetchReviews()
+      fetchReviewStats()
+    }
+  }, [productId])
+
+  const fetchProduct = async () => {
+    try {
+      const response = await fetch(`http://localhost:8081/api/products/${productId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setProduct(data)
+        setMainImage(data.imageUrl)
+      } else if (response.status === 404) {
+        toast({
+          title: "오류",
+          description: "상품을 찾을 수 없습니다.",
+          variant: "destructive",
+        })
+        router.push("/")
+      }
+    } catch (error) {
+      console.error("Error fetching product:", error)
+      toast({
+        title: "오류",
+        description: "상품 정보를 불러오는 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const images = [
-    "/fresh-jeju-tangerines.jpg",
-    "/fresh-korean-strawberries.jpg",
-    "/cherry-tomatoes.jpg",
-    "/organic-salad-vegetables.jpg",
-  ]
+  const fetchReviews = async () => {
+    try {
+      const response = await fetch(`http://localhost:8081/api/reviews/product/${productId}?size=10&sort=createdAt,desc`)
+      if (response.ok) {
+        const data = await response.json()
+        setReviews(data.content || [])
+      }
+    } catch (error) {
+      console.error("Error fetching reviews:", error)
+    }
+  }
 
-  const relatedProducts = [
-    {
-      id: "2",
-      name: "국내산 딸기 500g",
-      price: 12900,
-      originalPrice: 15900,
-      image: "/fresh-korean-strawberries.jpg",
-      badge: "베스트",
-      rating: 4.9,
-      reviewCount: 456,
-    },
-    {
-      id: "5",
-      name: "강원도 감자 5kg",
-      price: 15900,
-      image: "/fresh-potatoes.png",
-      badge: "NEW",
-      rating: 4.5,
-      reviewCount: 45,
-    },
-    {
-      id: "8",
-      name: "친환경 방울토마토 1kg",
-      price: 9900,
-      image: "/cherry-tomatoes.jpg",
-      badge: "NEW",
-      rating: 4.7,
-      reviewCount: 156,
-    },
-    {
-      id: "4",
-      name: "유기농 샐러드 채소 모음",
-      price: 8900,
-      image: "/organic-salad-vegetables.jpg",
-      badge: "유기농",
-      rating: 4.6,
-      reviewCount: 89,
-    },
-  ]
+  const fetchReviewStats = async () => {
+    try {
+      const response = await fetch(`http://localhost:8081/api/reviews/product/${productId}/stats`)
+      if (response.ok) {
+        const data = await response.json()
+        setReviewStats(data)
+      }
+    } catch (error) {
+      console.error("Error fetching review stats:", error)
+    }
+  }
 
-  const reviews = [
-    {
-      id: 1,
-      author: "김**",
-      rating: 5,
-      date: "2025.01.15",
-      content: "정말 달고 맛있어요! 크기도 적당하고 신선해서 만족합니다. 다음에도 재구매 의사 있습니다.",
-      helpful: 24,
-    },
-    {
-      id: 2,
-      author: "이**",
-      rating: 5,
-      date: "2025.01.14",
-      content: "배송도 빠르고 포장도 꼼꼼하게 잘 되어있었어요. 가족들이 모두 좋아합니다.",
-      helpful: 18,
-    },
-    {
-      id: 3,
-      author: "박**",
-      rating: 4,
-      date: "2025.01.13",
-      content: "대체로 만족하지만 몇 개는 조금 작았어요. 그래도 맛은 좋습니다!",
-      helpful: 12,
-    },
-  ]
+  const addToCart = async () => {
+    const token = localStorage.getItem("token")
+    if (!token) {
+      toast({
+        title: "로그인 필요",
+        description: "장바구니에 담으려면 로그인이 필요합니다.",
+        variant: "destructive",
+      })
+      router.push("/login")
+      return
+    }
 
-  const qna = [
-    {
-      id: 1,
-      question: "새벽배송 가능한가요?",
-      answer: "네, 새벽배송 가능합니다. 주문 시 배송 옵션에서 선택해주세요.",
-      author: "홍**",
-      date: "2025.01.14",
-      answered: true,
-    },
-    {
-      id: 2,
-      question: "유통기한이 얼마나 되나요?",
-      answer: "수확 후 바로 배송되며, 냉장 보관 시 약 2주 정도 신선하게 드실 수 있습니다.",
-      author: "최**",
-      date: "2025.01.13",
-      answered: true,
-    },
-  ]
+    try {
+      const response = await fetch("http://localhost:8081/api/cart/items", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          productId: Number(productId),
+          quantity: quantity,
+        }),
+      })
 
-  const discount = Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+      if (response.ok) {
+        toast({
+          title: "장바구니 추가",
+          description: "상품이 장바구니에 추가되었습니다.",
+        })
+      } else {
+        throw new Error("Failed to add to cart")
+      }
+    } catch (error) {
+      console.error("Error adding to cart:", error)
+      toast({
+        title: "오류",
+        description: "장바구니에 추가하는 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const submitReview = async () => {
+    const token = localStorage.getItem("token")
+    if (!token) {
+      toast({
+        title: "로그인 필요",
+        description: "리뷰를 작성하려면 로그인이 필요합니다.",
+        variant: "destructive",
+      })
+      router.push("/login")
+      return
+    }
+
+    if (!reviewTitle.trim() || !reviewContent.trim()) {
+      toast({
+        title: "입력 오류",
+        description: "제목과 내용을 모두 입력해주세요.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setSubmittingReview(true)
+    try {
+      const response = await fetch("http://localhost:8081/api/reviews", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          productId: Number(productId),
+          rating: reviewRating,
+          title: reviewTitle,
+          content: reviewContent,
+        }),
+      })
+
+      if (response.ok) {
+        toast({
+          title: "리뷰 작성 완료",
+          description: "리뷰가 성공적으로 등록되었습니다.",
+        })
+        setReviewDialogOpen(false)
+        setReviewTitle("")
+        setReviewContent("")
+        setReviewRating(5)
+        // Refresh reviews
+        fetchReviews()
+        fetchReviewStats()
+      } else {
+        throw new Error("Failed to submit review")
+      }
+    } catch (error) {
+      console.error("Error submitting review:", error)
+      toast({
+        title: "오류",
+        description: "리뷰 작성 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
+    } finally {
+      setSubmittingReview(false)
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString("ko-KR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1 py-8">
+          <div className="container mx-auto px-4">
+            <p className="text-center">로딩 중...</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    )
+  }
+
+  if (!product) {
+    return null
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -140,26 +280,13 @@ export default function ProductDetailPage() {
             {/* Images */}
             <div>
               <div className="relative aspect-square rounded-lg overflow-hidden bg-muted mb-4">
-                <Image src={mainImage || "/placeholder.svg"} alt={product.name} fill className="object-cover" />
-                <Badge className="absolute top-4 left-4 bg-primary text-primary-foreground">{discount}% 할인</Badge>
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                {images.map((img, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setMainImage(img)}
-                    className={`relative aspect-square rounded-lg overflow-hidden border-2 ${
-                      mainImage === img ? "border-primary" : "border-transparent"
-                    }`}
-                  >
-                    <Image
-                      src={img || "/placeholder.svg"}
-                      alt={`상품 이미지 ${index + 1}`}
-                      fill
-                      className="object-cover"
-                    />
-                  </button>
-                ))}
+                <Image
+                  src={mainImage || "/placeholder.svg"}
+                  alt={product.name}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
               </div>
             </div>
 
@@ -178,13 +305,13 @@ export default function ProductDetailPage() {
                       <Star
                         key={i}
                         className={`h-5 w-5 ${
-                          i < Math.floor(product.rating) ? "fill-accent text-accent" : "text-muted"
+                          i < Math.floor(reviewStats.averageRating) ? "fill-accent text-accent" : "text-muted"
                         }`}
                       />
                     ))}
                   </div>
-                  <span className="font-semibold">{product.rating}</span>
-                  <span className="text-muted-foreground">({product.reviewCount}개 리뷰)</span>
+                  <span className="font-semibold">{reviewStats.averageRating.toFixed(1)}</span>
+                  <span className="text-muted-foreground">({reviewStats.reviewCount}개 리뷰)</span>
                 </div>
               </div>
 
@@ -193,42 +320,15 @@ export default function ProductDetailPage() {
               {/* Price */}
               <div className="mb-6">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl font-bold text-primary">{discount}%</span>
                   <span className="text-3xl font-bold">{product.price.toLocaleString()}원</span>
                 </div>
-                <span className="text-lg text-muted-foreground line-through">
-                  {product.originalPrice.toLocaleString()}원
-                </span>
+                <div className="text-sm text-muted-foreground">재고: {product.stock}개</div>
               </div>
 
               <Separator className="my-6" />
 
-              {/* Options */}
+              {/* Quantity */}
               <div className="space-y-4 mb-6">
-                <div>
-                  <Label className="mb-3 block">용량 선택</Label>
-                  <RadioGroup value={selectedOption} onValueChange={setSelectedOption}>
-                    <div className="flex items-center space-x-2 p-3 border rounded-lg">
-                      <RadioGroupItem value="3kg" id="3kg" />
-                      <Label htmlFor="3kg" className="flex-1 cursor-pointer">
-                        3kg (19,900원)
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2 p-3 border rounded-lg">
-                      <RadioGroupItem value="5kg" id="5kg" />
-                      <Label htmlFor="5kg" className="flex-1 cursor-pointer">
-                        5kg (29,900원)
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2 p-3 border rounded-lg">
-                      <RadioGroupItem value="10kg" id="10kg" />
-                      <Label htmlFor="10kg" className="flex-1 cursor-pointer">
-                        10kg (49,900원)
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-
                 <div>
                   <Label className="mb-3 block">수량</Label>
                   <div className="flex items-center gap-2">
@@ -241,7 +341,12 @@ export default function ProductDetailPage() {
                       <Minus className="h-4 w-4" />
                     </Button>
                     <Input type="number" value={quantity} readOnly className="w-20 text-center" />
-                    <Button variant="outline" size="icon" onClick={() => setQuantity(quantity + 1)}>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
+                      disabled={quantity >= product.stock}
+                    >
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
@@ -254,9 +359,7 @@ export default function ProductDetailPage() {
               <div className="bg-muted/50 rounded-lg p-4 mb-6">
                 <div className="flex items-center justify-between text-lg">
                   <span className="font-semibold">총 상품 금액</span>
-                  <span className="text-2xl font-bold text-primary">
-                    {(product.price * quantity).toLocaleString()}원
-                  </span>
+                  <span className="text-2xl font-bold text-primary">{(product.price * quantity).toLocaleString()}원</span>
                 </div>
               </div>
 
@@ -268,7 +371,7 @@ export default function ProductDetailPage() {
                 <Button variant="outline" size="icon" className="bg-transparent">
                   <Share2 className="h-5 w-5" />
                 </Button>
-                <Button variant="outline" className="flex-1 bg-transparent">
+                <Button variant="outline" className="flex-1 bg-transparent" onClick={addToCart}>
                   장바구니
                 </Button>
                 <Button className="flex-1">
@@ -308,13 +411,7 @@ export default function ProductDetailPage() {
                 value="review"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
               >
-                리뷰 ({product.reviewCount})
-              </TabsTrigger>
-              <TabsTrigger
-                value="qna"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-              >
-                상품문의
+                리뷰 ({reviewStats.reviewCount})
               </TabsTrigger>
               <TabsTrigger
                 value="info"
@@ -330,16 +427,16 @@ export default function ProductDetailPage() {
                   <h3 className="text-xl font-bold mb-4">상품 정보</h3>
                   <div className="grid md:grid-cols-2 gap-4 text-sm">
                     <div className="flex">
-                      <span className="font-semibold w-24">생산자</span>
-                      <span>{product.producer}</span>
+                      <span className="font-semibold w-24">카테고리</span>
+                      <span>{product.category}</span>
                     </div>
                     <div className="flex">
                       <span className="font-semibold w-24">원산지</span>
                       <span>{product.origin}</span>
                     </div>
                     <div className="flex">
-                      <span className="font-semibold w-24">배송</span>
-                      <span>{product.shipping}</span>
+                      <span className="font-semibold w-24">재고</span>
+                      <span>{product.stock}개</span>
                     </div>
                     <div className="flex">
                       <span className="font-semibold w-24">보관방법</span>
@@ -350,17 +447,12 @@ export default function ProductDetailPage() {
 
                 <div className="space-y-4">
                   <h3 className="text-xl font-bold">상품 설명</h3>
-                  <p className="leading-relaxed">
-                    제주의 청정 자연에서 자란 프리미엄 감귤입니다. 일교차가 큰 제주의 기후 덕분에 당도가 높고 과즙이
-                    풍부합니다.
-                  </p>
-                  <p className="leading-relaxed">
-                    비타민C가 풍부하여 겨울철 감기 예방에 좋으며, 껍질이 얇아 먹기 편합니다. 엄선된 특품만을 선별하여
-                    배송해드립니다.
-                  </p>
-                  <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
-                    <Image src="/fresh-jeju-tangerines.jpg" alt="상품 상세 이미지" fill className="object-cover" />
-                  </div>
+                  <p className="leading-relaxed whitespace-pre-wrap">{product.description}</p>
+                  {product.imageUrl && (
+                    <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
+                      <Image src={product.imageUrl} alt={product.name} fill className="object-cover" unoptimized />
+                    </div>
+                  )}
                 </div>
               </div>
             </TabsContent>
@@ -369,86 +461,119 @@ export default function ProductDetailPage() {
               <div className="mb-8">
                 <div className="flex items-center gap-8 mb-6">
                   <div className="text-center">
-                    <div className="text-4xl font-bold mb-2">{product.rating}</div>
+                    <div className="text-4xl font-bold mb-2">{reviewStats.averageRating.toFixed(1)}</div>
                     <div className="flex items-center justify-center mb-1">
                       {[...Array(5)].map((_, i) => (
                         <Star
                           key={i}
                           className={`h-5 w-5 ${
-                            i < Math.floor(product.rating) ? "fill-accent text-accent" : "text-muted"
+                            i < Math.floor(reviewStats.averageRating) ? "fill-accent text-accent" : "text-muted"
                           }`}
                         />
                       ))}
                     </div>
-                    <div className="text-sm text-muted-foreground">{product.reviewCount}개 리뷰</div>
+                    <div className="text-sm text-muted-foreground">{reviewStats.reviewCount}개 리뷰</div>
                   </div>
                   <div className="flex-1">
-                    <Button>리뷰 작성하기</Button>
+                    <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button>리뷰 작성하기</Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[525px]">
+                        <DialogHeader>
+                          <DialogTitle>리뷰 작성</DialogTitle>
+                          <DialogDescription>{product.name}에 대한 리뷰를 작성해주세요.</DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div>
+                            <Label htmlFor="rating" className="mb-2 block">
+                              평점
+                            </Label>
+                            <div className="flex gap-1">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <button
+                                  key={star}
+                                  onClick={() => setReviewRating(star)}
+                                  className="focus:outline-none"
+                                >
+                                  <Star
+                                    className={`h-8 w-8 ${
+                                      star <= reviewRating ? "fill-accent text-accent" : "text-muted"
+                                    }`}
+                                  />
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <Label htmlFor="title">제목</Label>
+                            <Input
+                              id="title"
+                              value={reviewTitle}
+                              onChange={(e) => setReviewTitle(e.target.value)}
+                              placeholder="리뷰 제목을 입력하세요"
+                              maxLength={100}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="content">내용</Label>
+                            <Textarea
+                              id="content"
+                              value={reviewContent}
+                              onChange={(e) => setReviewContent(e.target.value)}
+                              placeholder="리뷰 내용을 입력하세요"
+                              rows={5}
+                              maxLength={1000}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setReviewDialogOpen(false)}>
+                            취소
+                          </Button>
+                          <Button onClick={submitReview} disabled={submittingReview}>
+                            {submittingReview ? "작성 중..." : "작성 완료"}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  {reviews.map((review) => (
-                    <Card key={review.id}>
-                      <CardContent className="p-6">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-semibold">{review.author}</span>
-                              <div className="flex">
-                                {[...Array(5)].map((_, i) => (
-                                  <Star
-                                    key={i}
-                                    className={`h-4 w-4 ${
-                                      i < review.rating ? "fill-accent text-accent" : "text-muted"
-                                    }`}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                            <div className="text-sm text-muted-foreground">{review.date}</div>
-                          </div>
-                        </div>
-                        <p className="text-sm leading-relaxed mb-3">{review.content}</p>
-                        <Button variant="ghost" size="sm" className="text-muted-foreground">
-                          도움돼요 ({review.helpful})
-                        </Button>
+                  {reviews.length === 0 ? (
+                    <Card>
+                      <CardContent className="p-12 text-center text-muted-foreground">
+                        아직 작성된 리뷰가 없습니다. 첫 번째 리뷰를 작성해보세요!
                       </CardContent>
                     </Card>
-                  ))}
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="qna" className="mt-8">
-              <div className="mb-6">
-                <Button>문의하기</Button>
-              </div>
-              <div className="space-y-4">
-                {qna.map((item) => (
-                  <Card key={item.id}>
-                    <CardContent className="p-6">
-                      <div className="mb-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant="outline">Q</Badge>
-                          <span className="font-semibold">{item.question}</span>
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {item.author} · {item.date}
-                        </div>
-                      </div>
-                      {item.answered && (
-                        <div className="bg-muted/50 rounded-lg p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge className="bg-primary text-primary-foreground">A</Badge>
-                            <span className="font-semibold">판매자 답변</span>
+                  ) : (
+                    reviews.map((review) => (
+                      <Card key={review.id}>
+                        <CardContent className="p-6">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-semibold">{review.userName}</span>
+                                <div className="flex">
+                                  {[...Array(5)].map((_, i) => (
+                                    <Star
+                                      key={i}
+                                      className={`h-4 w-4 ${i < review.rating ? "fill-accent text-accent" : "text-muted"}`}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="text-sm text-muted-foreground">{formatDate(review.createdAt)}</div>
+                            </div>
                           </div>
-                          <p className="text-sm leading-relaxed">{item.answer}</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
+                          <h4 className="font-semibold mb-2">{review.title}</h4>
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{review.content}</p>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
               </div>
             </TabsContent>
 
@@ -476,16 +601,6 @@ export default function ProductDetailPage() {
               </div>
             </TabsContent>
           </Tabs>
-
-          {/* Related Products */}
-          <section>
-            <h2 className="text-2xl font-bold mb-6">함께 보면 좋은 상품</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-              {relatedProducts.map((product) => (
-                <ProductCard key={product.id} {...product} />
-              ))}
-            </div>
-          </section>
         </div>
       </main>
 
