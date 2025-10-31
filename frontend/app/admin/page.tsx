@@ -41,100 +41,229 @@ import {
   Edit,
   Trash2,
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
+
+interface Product {
+  id: number
+  name: string
+  category: string
+  price: number
+  stock: number
+}
+
+interface OrderItem {
+  id: number
+  product: Product
+  quantity: number
+  price: number
+}
+
+interface Order {
+  id: number
+  createdAt: string
+  totalAmount: number
+  orderStatus: string
+  paymentStatus: string
+  orderItems: OrderItem[]
+  user: {
+    id: number
+    name: string
+    email: string
+  }
+}
 
 export default function AdminDashboard() {
-  const [selectedPeriod, setSelectedPeriod] = useState("7days")
+  const router = useRouter()
+  const { toast } = useToast()
+  const [orders, setOrders] = useState<Order[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // 샘플 데이터
-  const stats = {
-    totalSales: 15420000,
-    totalOrders: 342,
-    totalUsers: 1234,
-    totalProducts: 156,
-    salesGrowth: 12.5,
-    ordersGrowth: 8.3,
-    usersGrowth: 15.2,
+  useEffect(() => {
+    const token = localStorage.getItem("token")
+    if (!token) {
+      toast({
+        title: "접근 권한 없음",
+        description: "관리자 로그인이 필요합니다.",
+        variant: "destructive",
+      })
+      router.push("/login")
+      return
+    }
+
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    const token = localStorage.getItem("token")
+    if (!token) return
+
+    try {
+      // Fetch orders
+      const ordersResponse = await fetch("http://localhost:8081/api/orders", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (ordersResponse.ok) {
+        const ordersData = await ordersResponse.json()
+        setOrders(ordersData)
+      }
+
+      // Fetch products
+      const productsResponse = await fetch("http://localhost:8081/api/products?size=1000")
+      if (productsResponse.ok) {
+        const productsData = await productsResponse.json()
+        setProducts(productsData.content || [])
+      }
+    } catch (error) {
+      console.error("Error fetching data:", error)
+      toast({
+        title: "오류",
+        description: "데이터를 불러오는 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const salesData = [
-    { name: "월", sales: 2400000 },
-    { name: "화", sales: 1800000 },
-    { name: "수", sales: 3200000 },
-    { name: "목", sales: 2100000 },
-    { name: "금", sales: 2800000 },
-    { name: "토", sales: 3900000 },
-    { name: "일", sales: 4200000 },
-  ]
+  // Calculate statistics
+  const totalSales = orders.reduce((sum, order) => sum + order.totalAmount, 0)
+  const totalOrders = orders.length
+  const totalProducts = products.length
 
-  const categoryData = [
-    { name: "채소", value: 35, color: "#10b981" },
-    { name: "과일", value: 30, color: "#f59e0b" },
-    { name: "수산물", value: 20, color: "#3b82f6" },
-    { name: "축산물", value: 15, color: "#ef4444" },
-  ]
+  // Get recent orders (last 10)
+  const recentOrders = [...orders]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 10)
 
-  const recentOrders = [
-    {
-      id: "ORD-2025-001",
-      customer: "김민수",
-      product: "제주 감귤 3kg",
-      amount: 19900,
-      status: "배송중",
-      date: "2025-01-20",
-    },
-    {
-      id: "ORD-2025-002",
-      customer: "이지은",
-      product: "국내산 딸기 500g",
-      amount: 12900,
-      status: "결제완료",
-      date: "2025-01-20",
-    },
-    {
-      id: "ORD-2025-003",
-      customer: "박준형",
-      product: "완도 활전복 10미",
-      amount: 35000,
-      status: "배송완료",
-      date: "2025-01-19",
-    },
-    {
-      id: "ORD-2025-004",
-      customer: "최수진",
-      product: "유기농 샐러드 채소",
-      amount: 8900,
-      status: "주문취소",
-      date: "2025-01-19",
-    },
-  ]
+  // Calculate daily sales for the last 7 days
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date()
+    date.setDate(date.getDate() - (6 - i))
+    return date
+  })
 
-  const topProducts = [
-    { id: 1, name: "제주 감귤 3kg", sales: 234, revenue: 4656600 },
-    { id: 2, name: "국내산 딸기 500g", sales: 189, revenue: 2438100 },
-    { id: 3, name: "완도 활전복 10미", sales: 156, revenue: 5460000 },
-    { id: 4, name: "유기농 샐러드 채소", sales: 145, revenue: 1290500 },
-    { id: 5, name: "강원도 감자 5kg", sales: 123, revenue: 1955700 },
-  ]
+  const salesData = last7Days.map((date) => {
+    const dayOrders = orders.filter((order) => {
+      const orderDate = new Date(order.createdAt)
+      return orderDate.toDateString() === date.toDateString()
+    })
+    const daySales = dayOrders.reduce((sum, order) => sum + order.totalAmount, 0)
+
+    return {
+      name: date.toLocaleDateString("ko-KR", { weekday: "short" }),
+      sales: daySales,
+    }
+  })
+
+  // Calculate category distribution
+  const categoryCount: Record<string, number> = {}
+  products.forEach((product) => {
+    categoryCount[product.category] = (categoryCount[product.category] || 0) + 1
+  })
+
+  const categoryData = Object.entries(categoryCount).map(([name, value], index) => {
+    const colors = ["#10b981", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6"]
+    return {
+      name,
+      value,
+      color: colors[index % colors.length],
+    }
+  })
+
+  // Calculate top products by order frequency
+  const productSales: Record<number, { product: Product; count: number; revenue: number }> = {}
+  orders.forEach((order) => {
+    order.orderItems.forEach((item) => {
+      if (!productSales[item.product.id]) {
+        productSales[item.product.id] = { product: item.product, count: 0, revenue: 0 }
+      }
+      productSales[item.product.id].count += item.quantity
+      productSales[item.product.id].revenue += item.price * item.quantity
+    })
+  })
+
+  const topProducts = Object.values(productSales)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "배송중":
+      case "SHIPPED":
         return <Badge className="bg-blue-500">배송중</Badge>
-      case "결제완료":
+      case "PAID":
         return <Badge className="bg-green-500">결제완료</Badge>
-      case "배송완료":
+      case "DELIVERED":
         return <Badge variant="secondary">배송완료</Badge>
-      case "주문취소":
+      case "CANCELLED":
         return <Badge variant="destructive">주문취소</Badge>
+      case "PENDING":
+        return <Badge className="bg-muted">결제대기</Badge>
       default:
         return <Badge>{status}</Badge>
     }
   }
 
-  const handleExportExcel = () => {
-    // TODO: 엑셀 다운로드 API 호출
-    alert("엑셀 다운로드 기능은 개발 중입니다.")
+  const handleExportExcel = async () => {
+    const token = localStorage.getItem("token")
+    if (!token) return
+
+    try {
+      const response = await fetch("http://localhost:8081/api/admin/orders/export", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `orders_${new Date().toISOString().split("T")[0]}.xlsx`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+
+        toast({
+          title: "다운로드 완료",
+          description: "주문 내역이 엑셀 파일로 다운로드되었습니다.",
+        })
+      } else {
+        throw new Error("Export failed")
+      }
+    } catch (error) {
+      console.error("Error exporting excel:", error)
+      toast({
+        title: "오류",
+        description: "엑셀 다운로드 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString("ko-KR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1 bg-muted/30">
+          <div className="container mx-auto px-4 py-8">
+            <p className="text-center">로딩 중...</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    )
   }
 
   return (
@@ -157,11 +286,8 @@ export default function AdminDashboard() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.totalSales.toLocaleString()}원</div>
-                <p className="text-xs text-muted-foreground flex items-center mt-1">
-                  <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-                  전주 대비 +{stats.salesGrowth}%
-                </p>
+                <div className="text-2xl font-bold">{totalSales.toLocaleString()}원</div>
+                <p className="text-xs text-muted-foreground mt-1">누적 매출액</p>
               </CardContent>
             </Card>
 
@@ -171,25 +297,21 @@ export default function AdminDashboard() {
                 <ShoppingCart className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.totalOrders}건</div>
-                <p className="text-xs text-muted-foreground flex items-center mt-1">
-                  <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-                  전주 대비 +{stats.ordersGrowth}%
-                </p>
+                <div className="text-2xl font-bold">{totalOrders}건</div>
+                <p className="text-xs text-muted-foreground mt-1">전체 주문 수</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">총 회원</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">평균 주문액</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.totalUsers}명</div>
-                <p className="text-xs text-muted-foreground flex items-center mt-1">
-                  <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-                  전주 대비 +{stats.usersGrowth}%
-                </p>
+                <div className="text-2xl font-bold">
+                  {totalOrders > 0 ? Math.round(totalSales / totalOrders).toLocaleString() : 0}원
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">주문당 평균 금액</p>
               </CardContent>
             </Card>
 
@@ -199,7 +321,7 @@ export default function AdminDashboard() {
                 <Package className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.totalProducts}개</div>
+                <div className="text-2xl font-bold">{totalProducts}개</div>
                 <p className="text-xs text-muted-foreground mt-1">등록된 상품 수</p>
               </CardContent>
             </Card>
@@ -227,29 +349,33 @@ export default function AdminDashboard() {
 
             <Card>
               <CardHeader>
-                <CardTitle>카테고리별 판매 비율</CardTitle>
-                <CardDescription>전체 판매 중 카테고리 비중</CardDescription>
+                <CardTitle>카테고리별 상품 분포</CardTitle>
+                <CardDescription>등록된 상품의 카테고리별 비중</CardDescription>
               </CardHeader>
               <CardContent className="flex items-center justify-center">
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={categoryData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {categoryData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                {categoryData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={categoryData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={100}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {categoryData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-muted-foreground">카테고리 데이터가 없습니다</p>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -276,36 +402,37 @@ export default function AdminDashboard() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>주문번호</TableHead>
-                        <TableHead>고객명</TableHead>
-                        <TableHead>상품</TableHead>
-                        <TableHead>금액</TableHead>
-                        <TableHead>상태</TableHead>
-                        <TableHead>주문일</TableHead>
-                        <TableHead className="text-right">작업</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentOrders.map((order) => (
-                        <TableRow key={order.id}>
-                          <TableCell className="font-medium">{order.id}</TableCell>
-                          <TableCell>{order.customer}</TableCell>
-                          <TableCell>{order.product}</TableCell>
-                          <TableCell>{order.amount.toLocaleString()}원</TableCell>
-                          <TableCell>{getStatusBadge(order.status)}</TableCell>
-                          <TableCell>{order.date}</TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="icon">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
+                  {recentOrders.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">주문 내역이 없습니다</p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>주문번호</TableHead>
+                          <TableHead>고객명</TableHead>
+                          <TableHead>상품</TableHead>
+                          <TableHead>금액</TableHead>
+                          <TableHead>상태</TableHead>
+                          <TableHead>주문일</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {recentOrders.map((order) => (
+                          <TableRow key={order.id}>
+                            <TableCell className="font-medium">#{order.id}</TableCell>
+                            <TableCell>{order.user.name}</TableCell>
+                            <TableCell>
+                              {order.orderItems[0]?.product.name}
+                              {order.orderItems.length > 1 && ` 외 ${order.orderItems.length - 1}개`}
+                            </TableCell>
+                            <TableCell>{order.totalAmount.toLocaleString()}원</TableCell>
+                            <TableCell>{getStatusBadge(order.orderStatus)}</TableCell>
+                            <TableCell>{formatDate(order.createdAt)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -317,35 +444,30 @@ export default function AdminDashboard() {
                   <CardDescription>판매량이 높은 상품 순위</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>순위</TableHead>
-                        <TableHead>상품명</TableHead>
-                        <TableHead>판매량</TableHead>
-                        <TableHead>매출액</TableHead>
-                        <TableHead className="text-right">작업</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {topProducts.map((product, index) => (
-                        <TableRow key={product.id}>
-                          <TableCell className="font-medium">{index + 1}</TableCell>
-                          <TableCell>{product.name}</TableCell>
-                          <TableCell>{product.sales}개</TableCell>
-                          <TableCell>{product.revenue.toLocaleString()}원</TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="icon">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
+                  {topProducts.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">판매 데이터가 없습니다</p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>순위</TableHead>
+                          <TableHead>상품명</TableHead>
+                          <TableHead>판매량</TableHead>
+                          <TableHead>매출액</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {topProducts.map((item, index) => (
+                          <TableRow key={item.product.id}>
+                            <TableCell className="font-medium">{index + 1}</TableCell>
+                            <TableCell>{item.product.name}</TableCell>
+                            <TableCell>{item.count}개</TableCell>
+                            <TableCell>{item.revenue.toLocaleString()}원</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
