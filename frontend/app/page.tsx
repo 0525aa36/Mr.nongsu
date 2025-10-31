@@ -1,3 +1,5 @@
+"use client"
+
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ProductCard } from "@/components/product-card"
@@ -7,89 +9,79 @@ import { Card, CardContent } from "@/components/ui/card"
 import { ChevronRight, Truck, Shield, Leaf, Clock } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
+import { useState, useEffect } from "react"
+
+interface Product {
+  id: number
+  name: string
+  category: string
+  origin: string
+  description: string
+  price: number
+  stock: number
+  imageUrl: string
+  createdAt: string
+  updatedAt: string
+}
+
+interface ProductCardData {
+  id: string
+  name: string
+  price: number
+  originalPrice?: number
+  image: string
+  badge?: string
+  rating?: number
+  reviewCount?: number
+}
 
 export default function HomePage() {
-  // Sample product data
-  const todayDeals = [
-    {
-      id: "1",
-      name: "제주 감귤 3kg (특품)",
-      price: 19900,
-      originalPrice: 29900,
-      image: "/fresh-jeju-tangerines.jpg",
-      badge: "오늘특가",
-      rating: 4.8,
-      reviewCount: 234,
-    },
-    {
-      id: "2",
-      name: "국내산 딸기 500g",
-      price: 12900,
-      originalPrice: 15900,
-      image: "/fresh-korean-strawberries.jpg",
-      badge: "베스트",
-      rating: 4.9,
-      reviewCount: 456,
-    },
-    {
-      id: "3",
-      name: "완도 활전복 10미",
-      price: 35000,
-      originalPrice: 45000,
-      image: "/fresh-abalone.jpg",
-      badge: "신선보장",
-      rating: 4.7,
-      reviewCount: 123,
-    },
-    {
-      id: "4",
-      name: "유기농 샐러드 채소 모음",
-      price: 8900,
-      image: "/organic-salad-vegetables.jpg",
-      badge: "유기농",
-      rating: 4.6,
-      reviewCount: 89,
-    },
-  ]
+  const [allProducts, setAllProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const newProducts = [
-    {
-      id: "5",
-      name: "강원도 감자 5kg",
-      price: 15900,
-      image: "/fresh-potatoes.png",
-      badge: "NEW",
-      rating: 4.5,
-      reviewCount: 45,
-    },
-    {
-      id: "6",
-      name: "제주 은갈치 2마리",
-      price: 28000,
-      image: "/fresh-hairtail-fish.jpg",
-      badge: "NEW",
-      rating: 4.8,
-      reviewCount: 67,
-    },
-    {
-      id: "7",
-      name: "국내산 한우 등심 500g",
-      price: 45000,
-      image: "/korean-beef-sirloin.jpg",
-      badge: "NEW",
-      rating: 4.9,
-      reviewCount: 234,
-    },
-    {
-      id: "8",
-      name: "친환경 방울토마토 1kg",
-      price: 9900,
-      image: "/cherry-tomatoes.jpg",
-      badge: "NEW",
-      rating: 4.7,
-      reviewCount: 156,
-    },
-  ]
+  useEffect(() => {
+    fetchProducts()
+  }, [])
+
+  const fetchProducts = async () => {
+    try {
+      const response = await fetch("http://localhost:8081/api/products?size=50&sort=createdAt,desc")
+      if (response.ok) {
+        const data = await response.json()
+        setAllProducts(data.content || [])
+      }
+    } catch (error) {
+      console.error("Error fetching products:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Convert backend Product to ProductCard props
+  const convertToCardData = (product: Product, badge?: string): ProductCardData => ({
+    id: product.id.toString(),
+    name: product.name,
+    price: product.price,
+    image: product.imageUrl || "/placeholder.svg",
+    badge: badge || product.category,
+    rating: 4.5,
+    reviewCount: 0,
+  })
+
+  // Get latest products for "Today's Deals"
+  const todayDeals = allProducts.slice(0, 4).map((p) => convertToCardData(p, "오늘특가"))
+
+  // Get new products (most recent 8)
+  const newProducts = allProducts.slice(0, 8).map((p) => convertToCardData(p, "NEW"))
+
+  // Get categories from products
+  const categories = Array.from(new Set(allProducts.map((p) => p.category)))
+    .slice(0, 4)
+    .map((category) => ({
+      name: category,
+      image: "fresh+vegetables",
+      href: `/search?category=${encodeURIComponent(category)}`,
+    }))
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -112,9 +104,11 @@ export default function HomePage() {
                 믿을 수 있는 신선 식품을 만나보세요
               </p>
               <div className="flex gap-4">
-                <Button size="lg" className="text-base">
-                  지금 쇼핑하기
-                </Button>
+                <Link href="/search">
+                  <Button size="lg" className="text-base">
+                    지금 쇼핑하기
+                  </Button>
+                </Link>
                 <Button size="lg" variant="outline" className="text-base bg-transparent">
                   생산자 스토리
                 </Button>
@@ -122,7 +116,12 @@ export default function HomePage() {
             </div>
           </div>
           <div className="absolute right-0 top-0 h-full w-1/2 hidden lg:block">
-            <Image src="/fresh-vegetables-and-fruits-basket.jpg" alt="신선한 농산물" fill className="object-contain" />
+            <Image
+              src="/fresh-vegetables-and-fruits-basket.jpg"
+              alt="신선한 농산물"
+              fill
+              className="object-contain"
+            />
           </div>
         </section>
 
@@ -181,7 +180,7 @@ export default function HomePage() {
                 <h2 className="text-3xl font-bold mb-2">오늘의 특가</h2>
                 <p className="text-muted-foreground">매일 새로운 특가 상품을 만나보세요</p>
               </div>
-              <Link href="/deals">
+              <Link href="/search">
                 <Button variant="ghost">
                   전체보기
                   <ChevronRight className="h-4 w-4 ml-1" />
@@ -189,11 +188,17 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-              {todayDeals.map((product) => (
-                <ProductCard key={product.id} {...product} />
-              ))}
-            </div>
+            {loading ? (
+              <div className="text-center py-12 text-muted-foreground">로딩 중...</div>
+            ) : todayDeals.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">등록된 상품이 없습니다</div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                {todayDeals.map((product) => (
+                  <ProductCard key={product.id} {...product} />
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
@@ -201,30 +206,26 @@ export default function HomePage() {
         <section className="py-16 bg-muted/30">
           <div className="container mx-auto px-4">
             <h2 className="text-3xl font-bold mb-8 text-center">카테고리별 쇼핑</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { name: "채소", image: "fresh+vegetables", href: "/category/vegetables" },
-                { name: "과일", image: "fresh+fruits", href: "/category/fruits" },
-                { name: "수산물", image: "fresh+seafood", href: "/category/seafood" },
-                { name: "축산물", image: "fresh+meat", href: "/category/meat" },
-              ].map((category) => (
-                <Link key={category.name} href={category.href}>
-                  <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group">
-                    <div className="relative aspect-square">
-                      <Image
-                        src={`/.jpg?height=300&width=300&query=${category.image}`}
-                        alt={category.name}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    </div>
-                    <CardContent className="p-4 text-center">
-                      <h3 className="font-semibold text-lg">{category.name}</h3>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
+            {loading ? (
+              <div className="text-center py-12 text-muted-foreground">로딩 중...</div>
+            ) : categories.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">카테고리가 없습니다</div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {categories.map((category) => (
+                  <Link key={category.name} href={category.href}>
+                    <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group">
+                      <div className="relative aspect-square bg-muted flex items-center justify-center">
+                        <div className="text-6xl">🌾</div>
+                      </div>
+                      <CardContent className="p-4 text-center">
+                        <h3 className="font-semibold text-lg">{category.name}</h3>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
@@ -236,7 +237,7 @@ export default function HomePage() {
                 <h2 className="text-3xl font-bold mb-2">신상품</h2>
                 <p className="text-muted-foreground">이번 주 새로 입고된 신선 식품</p>
               </div>
-              <Link href="/new">
+              <Link href="/search">
                 <Button variant="ghost">
                   전체보기
                   <ChevronRight className="h-4 w-4 ml-1" />
@@ -244,11 +245,17 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-              {newProducts.map((product) => (
-                <ProductCard key={product.id} {...product} />
-              ))}
-            </div>
+            {loading ? (
+              <div className="text-center py-12 text-muted-foreground">로딩 중...</div>
+            ) : newProducts.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">등록된 상품이 없습니다</div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                {newProducts.map((product) => (
+                  <ProductCard key={product.id} {...product} />
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
@@ -278,13 +285,8 @@ export default function HomePage() {
                 },
               ].map((story, index) => (
                 <Card key={index} className="overflow-hidden hover:shadow-lg transition-shadow">
-                  <div className="relative aspect-video">
-                    <Image
-                      src={`/.jpg?height=300&width=400&query=${story.image}`}
-                      alt={story.name}
-                      fill
-                      className="object-cover"
-                    />
+                  <div className="relative aspect-video bg-muted flex items-center justify-center">
+                    <div className="text-8xl">🌱</div>
                   </div>
                   <CardContent className="p-6">
                     <Badge className="mb-2" variant="secondary">
