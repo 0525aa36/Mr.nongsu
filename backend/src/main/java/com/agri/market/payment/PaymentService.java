@@ -6,10 +6,13 @@ import com.agri.market.order.OrderRepository;
 import com.agri.market.order.OrderService;
 import com.agri.market.order.OrderStatus;
 import com.agri.market.order.PaymentStatus;
+import com.agri.market.user.User;
+import com.agri.market.user.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 public class PaymentService {
@@ -17,11 +20,14 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final OrderService orderService;
+    private final UserRepository userRepository;
 
-    public PaymentService(PaymentRepository paymentRepository, OrderRepository orderRepository, OrderService orderService) {
+    public PaymentService(PaymentRepository paymentRepository, OrderRepository orderRepository,
+                         OrderService orderService, UserRepository userRepository) {
         this.paymentRepository = paymentRepository;
         this.orderRepository = orderRepository;
         this.orderService = orderService;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -114,5 +120,16 @@ public class PaymentService {
         orderRepository.save(order);
 
         return payment;
+    }
+
+    /**
+     * 사용자별 결제 내역 조회
+     * @param userEmail 사용자 이메일
+     * @return 결제 내역 리스트
+     */
+    public List<Payment> getPaymentHistory(String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found with email: " + userEmail));
+        return paymentRepository.findByUser(user);
     }
 }

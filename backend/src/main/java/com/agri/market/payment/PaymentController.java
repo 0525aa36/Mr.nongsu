@@ -4,7 +4,12 @@ import com.agri.market.dto.RefundRequest;
 import com.agri.market.dto.WebhookRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/payments")
@@ -38,5 +43,15 @@ public class PaymentController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+    @GetMapping("/history")
+    public ResponseEntity<List<Payment>> getPaymentHistory() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        String userEmail = userDetails.getUsername();
+
+        List<Payment> payments = paymentService.getPaymentHistory(userEmail);
+        return ResponseEntity.ok(payments);
     }
 }
