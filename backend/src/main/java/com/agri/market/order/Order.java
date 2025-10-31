@@ -62,4 +62,9 @@ public class Order {
     private String cancellationReason; // 취소 사유
     private LocalDateTime cancelledAt; // 취소 시간
     private String trackingNumber; // 송장 번호 (배송 추적용)
+
+    // Delivery information
+    private LocalDateTime shippedAt; // 배송 시작 시간
+    private LocalDateTime deliveredAt; // 배송 완료 시간
+    private LocalDateTime confirmedAt; // 구매 확정 시간
 }

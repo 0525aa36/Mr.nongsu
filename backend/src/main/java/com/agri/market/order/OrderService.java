@@ -160,4 +160,36 @@ public class OrderService {
 
         return orderRepository.save(order);
     }
+
+    /**
+     * 구매 확정 (사용자가 배송 완료 확인)
+     * @param orderId 주문 ID
+     * @param userEmail 사용자 이메일 (권한 확인용)
+     * @return 구매 확정된 주문
+     */
+    @Transactional
+    public Order confirmOrder(Long orderId, String userEmail) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found with id: " + orderId));
+
+        // 본인 주문인지 확인
+        if (!order.getUser().getEmail().equals(userEmail)) {
+            throw new RuntimeException("Unauthorized: This order does not belong to you");
+        }
+
+        // 배송 완료 상태에서만 구매 확정 가능
+        if (order.getOrderStatus() != OrderStatus.DELIVERED) {
+            throw new RuntimeException("Cannot confirm order: Order is not delivered yet");
+        }
+
+        // 이미 확정된 경우
+        if (order.getConfirmedAt() != null) {
+            throw new RuntimeException("Order is already confirmed");
+        }
+
+        // 구매 확정
+        order.setConfirmedAt(java.time.LocalDateTime.now());
+
+        return orderRepository.save(order);
+    }
 }

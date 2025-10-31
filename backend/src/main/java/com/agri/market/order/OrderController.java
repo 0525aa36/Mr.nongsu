@@ -63,4 +63,18 @@ public class OrderController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+    @PostMapping("/{orderId}/confirm")
+    public ResponseEntity<?> confirmOrder(@PathVariable Long orderId) {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String userEmail = userDetails.getUsername();
+
+            Order confirmedOrder = orderService.confirmOrder(orderId, userEmail);
+            return ResponseEntity.ok(confirmedOrder);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
 }
