@@ -46,7 +46,7 @@ public class AuthService {
         user.setPostcode(request.getPostcode());
         user.setBirthDate(request.getBirthDate());
         user.setGender(request.getGender());
-        user.setRole("ROLE_USER"); // Default role
+        user.setRole("USER"); // Default role
 
         userRepository.save(user);
     }
