@@ -3,6 +3,7 @@ package com.agri.market.payment;
 import com.agri.market.dto.WebhookRequest;
 import com.agri.market.order.Order;
 import com.agri.market.order.OrderRepository;
+import com.agri.market.order.OrderService;
 import com.agri.market.order.OrderStatus;
 import com.agri.market.order.PaymentStatus;
 import org.springframework.stereotype.Service;
@@ -15,10 +16,12 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
+    private final OrderService orderService;
 
-    public PaymentService(PaymentRepository paymentRepository, OrderRepository orderRepository) {
+    public PaymentService(PaymentRepository paymentRepository, OrderRepository orderRepository, OrderService orderService) {
         this.paymentRepository = paymentRepository;
         this.orderRepository = orderRepository;
+        this.orderService = orderService;
     }
 
     @Transactional
@@ -59,6 +62,9 @@ public class PaymentService {
             order.setPaymentStatus(PaymentStatus.FAILED);
             order.setOrderStatus(OrderStatus.CANCELLED); // Or some other appropriate status
             payment.setStatus(PaymentStatus.FAILED);
+
+            // 결제 실패 시 재고 복구
+            orderService.restoreStock(order.getId());
         }
         // Update transaction ID if provided by webhook
         if (webhookRequest.getTransactionId() != null && !webhookRequest.getTransactionId().isEmpty()) {

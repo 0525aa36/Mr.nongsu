@@ -54,7 +54,8 @@ public class OrderService {
         Set<OrderItem> orderItems = new HashSet<>();
 
         for (OrderRequest.OrderItemRequest itemRequest : orderRequest.getItems()) {
-            Product product = productRepository.findById(itemRequest.getProductId())
+            // Pessimistic Lock을 사용하여 동시성 제어
+            Product product = productRepository.findByIdWithLock(itemRequest.getProductId())
                     .orElseThrow(() -> new RuntimeException("Product not found with id: " + itemRequest.getProductId()));
 
             if (product.getStock() < itemRequest.getQuantity()) {
@@ -94,5 +95,26 @@ public class OrderService {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new RuntimeException("User not found with email: " + userEmail));
         return orderRepository.findByUser(user);
+    }
+
+    /**
+     * 주문 취소 또는 결제 실패 시 재고 복구
+     * @param orderId 주문 ID
+     */
+    @Transactional
+    public void restoreStock(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found with id: " + orderId));
+
+        for (OrderItem orderItem : order.getOrderItems()) {
+            Product product = orderItem.getProduct();
+            // Pessimistic Lock으로 동시성 제어
+            Product lockedProduct = productRepository.findByIdWithLock(product.getId())
+                    .orElseThrow(() -> new RuntimeException("Product not found with id: " + product.getId()));
+
+            // 재고 복구
+            lockedProduct.setStock(lockedProduct.getStock() + orderItem.getQuantity());
+            productRepository.save(lockedProduct);
+        }
     }
 }
